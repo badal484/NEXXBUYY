@@ -1,0 +1,59 @@
+import Product from "../models/product.model.js";
+import Shop from "../models/shop.model.js";
+import imagekit from "../config/imagekit.js";
+
+export const addProduct = async (req, res) => {
+  try {
+    const { title, price, lng, lat } = req.body;
+
+    if (!title || !price || !lng || !lat) {
+      return res.status(400).json({ msg: "All fields are required" });
+    }
+
+
+    const parsedLng = parseFloat(lng);
+    const parsedLat = parseFloat(lat);
+    const parsedPrice = parseInt(price);
+
+    if (isNaN(parsedLng) || isNaN(parsedLat) || isNaN(parsedPrice)) {
+      return res.status(400).json({ msg: "Invalid numeric values" });
+    }
+
+    const shop = await Shop.findOne({ owner: req.user.id });
+
+    if (!shop) {
+      return res.status(400).json({ msg: "Create shop first" });
+    }
+
+    let imageUrls = [];
+
+    if (req.file) {
+      if (!imagekit) {
+        return res.status(500).json({ msg: "Image upload is not configured" });
+      }
+
+      const result = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: req.file.originalname,
+      });
+
+      imageUrls.push(result.url);
+    }
+
+    const product = await Product.create({
+      title,
+      price: parsedPrice,
+      seller: req.user.id,
+      shop: shop._id,
+      images: imageUrls,
+      location: {
+        type: "Point",
+        coordinates: [parsedLng, parsedLat],
+      },
+    });
+
+    res.status(201).json(product);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
